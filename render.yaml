@@ -1,0 +1,18 @@
+# Render Blueprint (optional). You can also create the service by hand in the dashboard.
+services:
+  - type: web
+    name: lyncs-chat
+    runtime: node
+    plan: free
+    buildCommand: "echo no build step"
+    startCommand: "node --no-warnings server/index.js"
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: OWNER_USERNAME
+        sync: false
+      - key: TURSO_URL
+        sync: false
+      - key: TURSO_AUTH_TOKEN
+        sync: false

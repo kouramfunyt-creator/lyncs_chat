@@ -1,0 +1,31 @@
+'use strict';
+const assert = require('node:assert/strict'); const fs = require('node:fs'); const os = require('node:os'); const path = require('node:path');
+const { createApp } = require('../server/index'); const { openSqlite, SCHEMA } = require('../server/db'); const { migrate } = require('../scripts/migrate-to-turso');
+const { Client } = require('./helpers');
+(async () => {
+  const d1 = fs.mkdtempSync(path.join(os.tmpdir(), 'mg1-')), d2 = fs.mkdtempSync(path.join(os.tmpdir(), 'mg2-'));
+  const env = { DATA_DIR: d1, OWNER_USERNAME: 'koura', REGISTER_PER_HOUR: '1000', WRITES_PER_MIN: '100000' };
+  const app = await createApp(env); await new Promise(r => app.server.listen(0, '127.0.0.1', r));
+  const base = 'http://127.0.0.1:' + app.server.address().port;
+  const a = new Client(base); await a.register('koura'); const uid = (await a.me()).uid;
+  await a.write('set', 'profiles/' + uid, { handle: 'koura', name: 'Koura' });
+  await a.write('set', 'feed/' + uid, { posts: [{ id: 'p1', at: Date.now(), text: 'hi #x' }] });
+  const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(64, 1)]);
+  const up = await a.req('POST', '/api/assets', png, { 'Content-Type': 'image/png' }); assert.equal(up.status, 200);
+  await app.close();
+  const src = openSqlite(path.join(d1, 'lyncs.db')), dst = openSqlite(path.join(d2, 'lyncs.db'));
+  const r = await migrate(src, dst, { log: () => {} });
+  assert.deepEqual([r.users, r.blobs, r.failedBlobs], [1, 1, 0]);
+  await assert.rejects(() => migrate(src, dst, { log: () => {} }), /すでにアカウント/);
+  await migrate(src, dst, { log: () => {}, force: true });
+  src.close(); dst.close();
+  // the new database serves the same account, post and image, and the old password still works
+  const app2 = await createApp({ ...env, DATA_DIR: d2 }); await new Promise(r2 => app2.server.listen(0, '127.0.0.1', r2));
+  const b = new Client('http://127.0.0.1:' + app2.server.address().port);
+  assert.equal((await b.post('/api/login', { login: 'koura', password: 'passw0rd123' })).status, 200);
+  assert.equal((await b.me()).owner, true);
+  assert.equal((await b.get('feed/' + uid)).data.posts[0].text, 'hi #x');
+  assert.equal((await b.req('GET', '/_blob/' + up.json.id)).status, 200);
+  await app2.close(); void SCHEMA;
+  console.log('PASS migrate keeps accounts, posts, images and passwords');
+})().catch(e => { console.error('FAIL', e); process.exit(1); });

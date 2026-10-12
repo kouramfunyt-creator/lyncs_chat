@@ -1,0 +1,14 @@
+{
+  "name": "lyncs-web",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Lyncs_Chat - X-like SNS. Plain Node.js, no npm dependencies.",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node --no-warnings server/index.js",
+    "reset-password": "node --no-warnings scripts/reset-password.js",
+    "export": "node --no-warnings scripts/export.js",
+    "test": "node --no-warnings test/api.js && node --no-warnings test/migrate.js && node --no-warnings test/turso.js && node --no-warnings test/share.js && node --no-warnings test/nosse.js && node --no-warnings test/ui.js"
+  },
+  "engines": { "node": ">=22.5" }
+}
